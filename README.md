@@ -1,5 +1,9 @@
 # claude-code-pulse
 
+[![npm version](https://img.shields.io/npm/v/claude-code-pulse.svg)](https://www.npmjs.com/package/claude-code-pulse)
+[![npm downloads](https://img.shields.io/npm/dm/claude-code-pulse.svg)](https://www.npmjs.com/package/claude-code-pulse)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 See where your Claude Code tokens go. Accurate counts, optimization tips, zero setup.
 
 ![Overview](screenshots/overview.png)
@@ -8,11 +12,26 @@ See where your Claude Code tokens go. Accurate counts, optimization tips, zero s
 
 ## Quick Start
 
-```
+```bash
 npx claude-code-pulse
 ```
 
 That's it. A dashboard opens in your browser.
+
+## Install
+
+**No install needed** — just use `npx`:
+
+```bash
+npx claude-code-pulse
+```
+
+Or install globally if you run it often:
+
+```bash
+npm install -g claude-code-pulse
+claude-code-pulse
+```
 
 ## What You'll See
 
