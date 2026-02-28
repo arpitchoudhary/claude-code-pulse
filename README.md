@@ -35,14 +35,38 @@ claude-code-pulse
 
 ## What You'll See
 
-- **Token totals** — total tokens used across all sessions, broken down by input, cached, and output
-- **Usage heatmap** — GitHub-style calendar showing your daily usage intensity over the past 12 weeks
-- **Daily chart** — interactive stacked bar chart of daily token usage by category
-- **Model breakdown** — donut chart showing which Claude models you use most
-- **Project breakdown** — see which projects consume the most tokens
-- **Session ranking** — find your heaviest sessions and what prompted them
-- **Tool usage** — which tools (Read, Edit, Bash, etc.) Claude uses most in your workflows
-- **Optimization tips** — personalized suggestions to use Claude Code more efficiently
+### Summary cards                                                                           
+- **Total tokens** — input, cached, and output broken out, with a week-over-week ↑/↓ trend
+- **Sessions** — total session count and turns, with week-over-week delta
+- **Cache hit rate** — percentage of tokens served from cache
+- **Avg tokens / session** — average tokens per session and per turn   
+
+### Date range filter
+Toggle between **7D / 30D / 90D / All** in the header to filter every view to a time window.
+
+## Dashboard Tabs
+
+### Overview
+- **Usage heatmap** — Monday-first GitHub-style calendar for the past 12 weeks, with month labels and hover tooltips showing date (dd-mm-yyyy) and token count
+- **Usage by hour of day** — bar chart showing which hours you use Claude most (local time)
+- **Daily token usage** — stacked bar chart of daily input, cache, and output tokens
+- **Model breakdown** — donut chart of which Claude models you use most
+
+### Projects
+Table of all projects ranked by token usage, with session count, turns, and API-equivalent cost.
+
+### Sessions
+- **Best & Worst sessions** — top 3 most efficient and 3 least efficient sessions scored by output ratio, cache reuse, and tool density
+- **All sessions table** — full sortable list (Date, Tokens, Turns, Efficiency) with a color-coded efficiency score per session; click any row to open a session detail modal
+
+### Tools
+Bar chart of your top 20 most-used Claude tools (Read, Edit, Bash, Grep, etc.) by call count.
+
+### Prompts
+Your 50 most token-heavy individual prompts, sortable by Date, Tokens, or Cost. Click any row to open the parent session detail.
+
+### Optimize
+Personalized tips based on your actual usage patterns — low cache hit rate, many short sessions, heavy Opus usage, high tool density, and more.
 
 ## How It Works
 

@@ -87,7 +87,27 @@
     transition: background 0.15s, color 0.15s;
   }
   .btn:hover { background: var(--bg-hover); color: var(--text); }
+  .btn-stop { color: #f87171; border-color: #f8717155; }
+  .btn-stop:hover { background: #f8717122; color: #f87171; }
   .last-updated { color: var(--text-dim); font-size: 12px; }
+  .filter-btns { display: flex; gap: 4px; }
+  .filter-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--font);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .filter-btn:hover { background: var(--bg-hover); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
+  .delta { font-size: 11px; margin-top: 2px; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  .delta.flat { color: var(--text-dim); }
 
   /* Loading */
   .loading {
@@ -145,14 +165,14 @@
   .heatmap-container { overflow-x: auto; }
   .heatmap-grid {
     display: inline-grid;
-    grid-template-rows: repeat(7, 14px);
+    grid-template-rows: repeat(7, 24px);
     grid-auto-flow: column;
-    gap: 3px;
+    gap: 4px;
   }
   .heatmap-cell {
-    width: 14px;
-    height: 14px;
-    border-radius: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
     background: var(--border);
     cursor: default;
     position: relative;
@@ -166,35 +186,33 @@
   [data-theme="light"] .heatmap-cell[data-level="3"] { background: #30a14e; }
   [data-theme="light"] .heatmap-cell[data-level="4"] { background: #216e39; }
 
-  .heatmap-tooltip {
-    position: absolute;
-    bottom: 22px;
-    left: 50%;
-    transform: translateX(-50%);
+  #heatmapTooltip {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
     background: var(--text);
     color: var(--bg);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 11px;
     white-space: nowrap;
-    pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    z-index: 10;
   }
-  .heatmap-cell:hover .heatmap-tooltip { opacity: 1; }
   .heatmap-labels {
-    display: inline-grid;
-    grid-template-rows: repeat(7, 14px);
-    gap: 3px;
+    width: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin-right: 8px;
-    vertical-align: top;
   }
   .heatmap-labels span {
     font-size: 10px;
     color: var(--text-dim);
-    line-height: 14px;
+    height: 24px;
+    line-height: 24px;
     text-align: right;
+    flex-shrink: 0;
   }
   .heatmap-months {
     margin-top: 6px;
@@ -212,7 +230,7 @@
     font-size: 11px;
     color: var(--text-dim);
   }
-  .heatmap-legend .heatmap-cell { cursor: default; width: 12px; height: 12px; }
+  .heatmap-legend .heatmap-cell { cursor: default; width: 14px; height: 14px; }
 
   /* Charts */
   .chart-container { position: relative; height: 250px; }
@@ -245,6 +263,9 @@
     user-select: none;
   }
   th:hover { color: var(--text); }
+  th.sortable { cursor: pointer; user-select: none; }
+  .sort-icon { font-size: 10px; color: var(--text-dim); margin-left: 3px; }
+  .sort-icon.active { color: var(--accent); }
   td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
@@ -414,6 +435,7 @@
 </style>
 </head>
 <body>
+<div id="heatmapTooltip"></div>
 <div class="container">
   <div id="loading" class="loading">
     <div class="loading-spinner"></div>
@@ -425,8 +447,15 @@
       <h1><span>claude</span>-pulse</h1>
       <div class="header-actions">
         <span class="last-updated" id="lastUpdated"></span>
+        <div class="filter-btns" id="filterBtns">
+          <button class="filter-btn" data-range="7d">7D</button>
+          <button class="filter-btn" data-range="30d">30D</button>
+          <button class="filter-btn" data-range="90d">90D</button>
+          <button class="filter-btn active" data-range="all">All</button>
+        </div>
         <button class="btn" id="refreshBtn" aria-label="Refresh data">Refresh</button>
         <button class="btn" id="themeBtn" aria-label="Toggle theme">Light</button>
+        <button class="btn btn-stop" id="stopBtn" aria-label="Stop server">Stop</button>
       </div>
     </div>
 
@@ -439,14 +468,21 @@
       <button class="tab" data-tab="projects" role="tab">Projects</button>
       <button class="tab" data-tab="sessions" role="tab">Sessions</button>
       <button class="tab" data-tab="tools" role="tab">Tools</button>
+      <button class="tab" data-tab="prompts" role="tab">Prompts</button>
       <button class="tab" data-tab="optimize" role="tab">Optimize</button>
     </div>
 
     <!-- Overview tab -->
     <div class="tab-content active" id="tab-overview">
-      <div class="section">
-        <div class="section-title">Usage Heatmap (last 12 weeks)</div>
-        <div class="heatmap-container" id="heatmapContainer"></div>
+      <div class="charts-row">
+        <div class="section">
+          <div class="section-title">Usage Heatmap (last 12 weeks)</div>
+          <div class="heatmap-container" id="heatmapContainer"></div>
+        </div>
+        <div class="section">
+          <div class="section-title">Usage by Hour of Day</div>
+          <div class="chart-container"><canvas id="hourChart"></canvas></div>
+        </div>
       </div>
       <div class="charts-row">
         <div class="section">
@@ -485,6 +521,14 @@
       <div class="section">
         <div class="section-title">Tool Usage Frequency</div>
         <div id="toolsChart"></div>
+      </div>
+    </div>
+
+    <!-- Prompts tab -->
+    <div class="tab-content" id="tab-prompts">
+      <div class="section">
+        <div class="section-title">Top Token-Heavy Prompts</div>
+        <div class="table-container" id="promptsTable"></div>
       </div>
     </div>
 
@@ -529,7 +573,7 @@ function setTheme(t) {
 }
 themeBtn.addEventListener('click', () => {
   setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-  if (window._data) renderCharts(window._data);
+  if (window._data) renderAll(getFilteredData(window._data));
 });
 const savedTheme = localStorage.getItem('claude-code-pulse-theme') || 'dark';
 setTheme(savedTheme);
@@ -567,6 +611,101 @@ function shortProject(p) {
   return parts.slice(-2).join('/') || p;
 }
 
+let sessionSort = { col: 'tokens', dir: 'desc' };
+let promptSort = { col: 'tokens', dir: 'desc' };
+let dateFilter = 'all';
+
+// Date range filter
+function getCutoff(range) {
+  if (range === 'all') return null;
+  const d = new Date();
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+  d.setDate(d.getDate() - (days - 1));
+  return d.toISOString().split('T')[0];
+}
+
+function getFilteredData(data) {
+  const cutoff = getCutoff(dateFilter);
+  if (!cutoff) return data;
+
+  const sessions = data.sessions.filter(s => s.date >= cutoff);
+  const dailyUsage = data.dailyUsage.filter(d => d.date >= cutoff);
+  const topPrompts = (data.topPrompts || []).filter(p => p.date >= cutoff);
+
+  // Recompute totals
+  const totalInput = sessions.reduce((s, x) => s + x.inputTokens, 0);
+  const totalOutput = sessions.reduce((s, x) => s + x.outputTokens, 0);
+  const totalCacheCreation = sessions.reduce((s, x) => s + x.cacheCreationTokens, 0);
+  const totalCacheRead = sessions.reduce((s, x) => s + x.cacheReadTokens, 0);
+  const totalTokens = totalInput + totalOutput + totalCacheCreation + totalCacheRead;
+  const totalCost = sessions.reduce((s, x) => s + x.cost, 0);
+  const totalQueries = sessions.reduce((s, x) => s + x.queryCount, 0);
+  const totalThinkingTurns = sessions.reduce((s, x) => s + x.thinkingTurns, 0);
+  const cacheHitRate = (totalCacheRead + totalCacheCreation) > 0
+    ? totalCacheRead / (totalCacheRead + totalCacheCreation + totalInput) : 0;
+
+  // Recompute projects
+  const projectMap = {};
+  for (const s of sessions) {
+    if (!projectMap[s.project]) projectMap[s.project] = { project: s.project, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, totalTokens: 0, cost: 0, sessionCount: 0, queryCount: 0 };
+    const p = projectMap[s.project];
+    p.inputTokens += s.inputTokens; p.outputTokens += s.outputTokens;
+    p.cacheCreationTokens += s.cacheCreationTokens; p.cacheReadTokens += s.cacheReadTokens;
+    p.totalTokens += s.totalTokens; p.cost += s.cost;
+    p.sessionCount += 1; p.queryCount += s.queryCount;
+  }
+  const projects = Object.values(projectMap).sort((a, b) => b.totalTokens - a.totalTokens);
+
+  // Recompute model breakdown
+  const modelMap = {};
+  for (const s of sessions) {
+    if (!modelMap[s.model]) modelMap[s.model] = { model: s.model, totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, cost: 0, queryCount: 0 };
+    const m = modelMap[s.model];
+    m.totalTokens += s.totalTokens; m.inputTokens += s.inputTokens;
+    m.outputTokens += s.outputTokens; m.cacheCreationTokens += s.cacheCreationTokens;
+    m.cacheReadTokens += s.cacheReadTokens; m.cost += s.cost; m.queryCount += s.queryCount;
+  }
+  const modelBreakdown = Object.values(modelMap).sort((a, b) => b.totalTokens - a.totalTokens);
+
+  return {
+    ...data,
+    sessions,
+    dailyUsage,
+    topPrompts,
+    projects,
+    modelBreakdown,
+    totals: {
+      totalTokens, totalInput, totalOutput, totalCacheCreation, totalCacheRead,
+      totalCost, totalSessions: sessions.length, totalQueries,
+      totalThinkingTurns, cacheHitRate,
+      avgTokensPerSession: sessions.length > 0 ? Math.round(totalTokens / sessions.length) : 0,
+      avgTokensPerQuery: totalQueries > 0 ? Math.round(totalTokens / totalQueries) : 0,
+    },
+  };
+}
+
+// Wire filter buttons
+document.getElementById('filterBtns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-range]');
+  if (!btn || !window._data) return;
+  dateFilter = btn.dataset.range;
+  $$('#filterBtns [data-range]').forEach(b => b.classList.toggle('active', b === btn));
+  renderAll(getFilteredData(window._data));
+});
+
+function renderAll(data) {
+  renderStats(data);
+  renderHeatmap(data);
+  renderCharts(data);
+  renderHourChart(data);
+  renderProjects(data);
+  renderBestWorst(data);
+  renderSessions(data);
+  renderTools(data);
+  renderTopPrompts(data);
+  renderOptimizations(data);
+}
+
 // Fetch data
 async function loadData(refresh = false) {
   const url = '/api/usage' + (refresh ? '?refresh=true' : '');
@@ -593,32 +732,48 @@ async function render(refresh = false) {
     }
 
     $('#lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
-    renderStats(data);
-    renderHeatmap(data);
-    renderCharts(data);
-    renderProjects(data);
-    renderBestWorst(data);
-    renderSessions(data);
-    renderTools(data);
-    renderOptimizations(data);
+    renderAll(getFilteredData(data));
   } catch (err) {
     $('#loading').innerHTML = `<div style="color:var(--red);">Failed to load data: ${escapeHtml(err.message)}</div>`;
   }
 }
 
+function weekDelta(dailyUsage, field) {
+  const today = new Date();
+  const pad = (d) => d.toISOString().split('T')[0];
+  const d7 = new Date(today); d7.setDate(today.getDate() - 6);
+  const d14 = new Date(today); d14.setDate(today.getDate() - 13);
+  const d8 = new Date(today); d8.setDate(today.getDate() - 7);
+  const thisWeek = dailyUsage.filter(d => d.date >= pad(d7)).reduce((s, d) => s + (d[field] || 0), 0);
+  const lastWeek = dailyUsage.filter(d => d.date >= pad(d14) && d.date < pad(d8)).reduce((s, d) => s + (d[field] || 0), 0);
+  if (lastWeek === 0) return null;
+  return ((thisWeek - lastWeek) / lastWeek) * 100;
+}
+
+function deltaHtml(pct) {
+  if (pct === null) return '';
+  if (Math.abs(pct) < 1) return `<div class="delta flat">— no change vs last week</div>`;
+  const dir = pct > 0 ? 'up' : 'down';
+  const arrow = pct > 0 ? '↑' : '↓';
+  return `<div class="delta ${dir}">${arrow} ${Math.abs(pct).toFixed(0)}% vs last week</div>`;
+}
+
 function renderStats(data) {
   const t = data.totals;
+  const tokenDelta = weekDelta((window._data || data).dailyUsage, 'totalTokens');
+  const sessionDelta = weekDelta((window._data || data).dailyUsage, 'sessions');
   const cards = [
-    { label: 'Total Tokens', value: fmt(t.totalTokens), sub: `${fmt(t.totalInput)} input + ${fmt(t.totalCacheCreation + t.totalCacheRead)} cached + ${fmt(t.totalOutput)} output` },
-    { label: 'Sessions', value: t.totalSessions, sub: `${t.totalQueries} total turns` },
-    { label: 'Cache Hit Rate', value: fmtPct(t.cacheHitRate), sub: `${fmt(t.totalCacheRead)} tokens served from cache` },
-    { label: 'Avg Tokens / Session', value: fmt(t.avgTokensPerSession), sub: `${fmt(t.avgTokensPerQuery)} per turn` },
+    { label: 'Total Tokens', value: fmt(t.totalTokens), sub: `${fmt(t.totalInput)} input + ${fmt(t.totalCacheCreation + t.totalCacheRead)} cached + ${fmt(t.totalOutput)} output`, delta: deltaHtml(tokenDelta) },
+    { label: 'Sessions', value: t.totalSessions, sub: `${t.totalQueries} total turns`, delta: deltaHtml(sessionDelta) },
+    { label: 'Cache Hit Rate', value: fmtPct(t.cacheHitRate), sub: `${fmt(t.totalCacheRead)} tokens served from cache`, delta: '' },
+    { label: 'Avg Tokens / Session', value: fmt(t.avgTokensPerSession), sub: `${fmt(t.avgTokensPerQuery)} per turn`, delta: '' },
   ];
   $('#statsGrid').innerHTML = cards.map(c => `
     <div class="stat-card">
       <div class="label">${c.label}</div>
       <div class="value">${c.value}</div>
       <div class="sub">${c.sub}</div>
+      ${c.delta}
     </div>
   `).join('');
 }
@@ -647,29 +802,57 @@ function renderHeatmap(data) {
     return 4;
   }
 
-  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Pad to start on Sunday
-  const firstDay = days[0].dayOfWeek;
+  // Pad to start on Monday (Mon=0 … Sun=6)
+  const firstDay = (days[0].dayOfWeek + 6) % 7;
   const padded = Array(firstDay).fill(null).concat(days);
 
+  // Build columns (each column = 7 cells = one week)
+  const cols = [];
+  for (let c = 0; c < Math.ceil(padded.length / 7); c++) {
+    cols.push(padded.slice(c * 7, c * 7 + 7));
+  }
+
+  // Build month label row — show month name at first col of each new month
+  let prevMonth = -1;
+  let monthHtml = '';
+  for (const col of cols) {
+    const firstReal = col.find(d => d !== null);
+    const month = firstReal ? new Date(firstReal.date).getUTCMonth() : -1;
+    if (firstReal && month !== prevMonth) {
+      monthHtml += `<span style="display:inline-block;width:28px;overflow:visible;font-size:10px;color:var(--text-dim);line-height:16px;">${monthNames[month]}</span>`;
+      prevMonth = month;
+    } else {
+      monthHtml += `<span style="display:inline-block;width:28px;"></span>`;
+    }
+  }
+
   let html = '<div style="display:flex;align-items:flex-start;">';
+  // Left: day-label spacer (30px) + labels
   html += '<div class="heatmap-labels">';
+  html += '<div style="height:16px;flex-shrink:0;"></div>';
   for (let i = 0; i < 7; i++) {
-    html += `<span>${i % 2 === 1 ? dayLabels[i] : ''}</span>`;
+    html += `<span>${dayLabels[i]}</span>`;
   }
   html += '</div>';
+  // Right: month labels row stacked above grid
+  html += '<div style="display:flex;flex-direction:column;">';
+  html += `<div style="display:flex;margin-bottom:4px;">${monthHtml}</div>`;
   html += '<div class="heatmap-grid">';
   for (const d of padded) {
     if (!d) {
-      html += '<div style="width:14px;height:14px;"></div>';
+      html += '<div style="width:24px;height:24px;"></div>';
     } else {
-      html += `<div class="heatmap-cell" data-level="${level(d.tokens)}">
-        <div class="heatmap-tooltip">${d.date}: ${fmt(d.tokens)} tokens</div>
-      </div>`;
+      const [y, m, day] = d.date.split('-');
+      const fmtDate = `${day}-${m}-${y}`;
+      html += `<div class="heatmap-cell" data-level="${level(d.tokens)}" data-tip="${fmtDate}: ${fmt(d.tokens)} tokens"></div>`;
     }
   }
-  html += '</div></div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
 
   // Legend
   html += `<div class="heatmap-legend">
@@ -682,7 +865,8 @@ function renderHeatmap(data) {
     <span>More</span>
   </div>`;
 
-  $('#heatmapContainer').innerHTML = html;
+  const container = $('#heatmapContainer');
+  container.innerHTML = html;
 }
 
 let dailyChartInstance = null;
@@ -802,6 +986,85 @@ function sessionReason(s, isBest) {
   }
 }
 
+let hourChartInstance = null;
+
+function renderHourChart(data) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = isDark ? '#8b949e' : '#656d76';
+  const gridColor = isDark ? 'rgba(48,54,61,0.5)' : 'rgba(208,215,222,0.5)';
+
+  const hourBuckets = new Array(24).fill(0);
+  for (const s of data.sessions) {
+    if (!s.timestamp) continue;
+    const h = new Date(s.timestamp).getHours();
+    hourBuckets[h] += s.totalTokens;
+  }
+
+  const labels = Array.from({ length: 24 }, (_, i) => `${i}h`);
+  const ctx = document.getElementById('hourChart').getContext('2d');
+  if (hourChartInstance) { hourChartInstance.destroy(); hourChartInstance = null; }
+  hourChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Tokens', data: hourBuckets, backgroundColor: '#58a6ff', borderRadius: 3 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' tokens' } } },
+      scales: {
+        x: { ticks: { color: textColor, font: { size: 11 } }, grid: { color: gridColor } },
+        y: { ticks: { color: textColor, font: { size: 11 }, callback: v => fmt(v) }, grid: { color: gridColor } },
+      },
+    },
+  });
+}
+
+function renderTopPrompts(data) {
+  const prompts = [...(data.topPrompts || [])];
+  if (prompts.length === 0) {
+    $('#promptsTable').innerHTML = '<p class="text-muted">No prompt data available yet.</p>';
+    return;
+  }
+
+  const { col: pc, dir: pd } = promptSort;
+  prompts.sort((a, b) => {
+    if (pc === 'date')   { return pd === 'asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date); }
+    if (pc === 'tokens') { return pd === 'asc' ? a.totalTokens - b.totalTokens : b.totalTokens - a.totalTokens; }
+    if (pc === 'cost')   { return pd === 'asc' ? a.cost - b.cost : b.cost - a.cost; }
+    return 0;
+  });
+
+  function pSortIcon(c) {
+    if (c !== pc) return `<span class="sort-icon">↕</span>`;
+    return `<span class="sort-icon active">${pd === 'asc' ? '↑' : '↓'}</span>`;
+  }
+
+  let html = `<table>
+    <thead><tr>
+      <th>Prompt</th>
+      <th class="sortable" data-col="date">Date ${pSortIcon('date')}</th>
+      <th>Model</th>
+      <th class="sortable text-right" data-col="tokens">Tokens ${pSortIcon('tokens')}</th>
+      <th class="sortable text-right" data-col="cost">Cost ${pSortIcon('cost')}</th>
+    </tr></thead>
+    <tbody>`;
+  for (const p of prompts) {
+    html += `<tr style="cursor:pointer" data-session-id="${escapeHtml(p.sessionId)}">
+      <td class="truncate" title="${escapeHtml(p.prompt)}">${escapeHtml(p.prompt)}</td>
+      <td class="mono text-muted">${p.date}</td>
+      <td class="mono text-muted">${escapeHtml(shortModel(p.model))}</td>
+      <td class="mono text-right">${fmt(p.totalTokens)}</td>
+      <td class="mono text-right">${fmtCost(p.cost)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  html += `<div class="text-muted" style="margin-top:8px;font-size:12px;">${prompts.length} prompts — click to view session</div>`;
+
+  const container = $('#promptsTable');
+  container.innerHTML = html;
+}
+
 function renderBestWorst(data) {
   const eligible = data.sessions.filter(s => s.queryCount >= 3);
   if (eligible.length < 2) {
@@ -820,8 +1083,7 @@ function renderBestWorst(data) {
     const cachePct = s.totalTokens > 0 ? (s.cacheReadTokens / s.totalTokens * 100).toFixed(0) : 0;
     const isBest = type === 'best';
     return `<div class="bw-card ${type}" style="cursor:pointer" tabindex="0" role="button"
-        onclick="openSessionModal('${escapeHtml(s.sessionId)}', {type:'${type}',rank:${rank}})"
-        onkeydown="if(event.key==='Enter'||event.key===' ')openSessionModal('${escapeHtml(s.sessionId)}',{type:'${type}',rank:${rank}})">
+        data-session-id="${escapeHtml(s.sessionId)}">
       <div class="bw-badge ${type}">${isBest ? '★' : '✕'} ${type === 'best' ? 'Best' : 'Worst'} #${rank}</div>
       <div class="bw-prompt" title="${escapeHtml(s.firstPrompt)}">${escapeHtml(s.firstPrompt)}</div>
       <div class="bw-meta">${s.date} · ${escapeHtml(shortModel(s.model))} · ${fmt(s.totalTokens)} tokens</div>
@@ -844,28 +1106,75 @@ function renderBestWorst(data) {
     <div class="bw-row">${worst.map((s, i) => card(s, 'worst', i + 1)).join('')}</div>
   </div>`;
 
-  $('#bestWorstGrid').innerHTML = html;
+  const grid = $('#bestWorstGrid');
+  grid.innerHTML = html;
+
+  grid.addEventListener('click', e => {
+    const card = e.target.closest('[data-session-id]');
+    if (card) openSessionModal(card.dataset.sessionId);
+  });
+  grid.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const card = e.target.closest('[data-session-id]');
+      if (card) openSessionModal(card.dataset.sessionId);
+    }
+  });
 }
 
 function renderSessions(data) {
-  const top50 = data.sessions.slice(0, 50);
+  const sessions = [...(data.sessions || [])];
+  const { col, dir } = sessionSort;
+  sessions.sort((a, b) => {
+    let av, bv;
+    if (col === 'date')       { av = a.date; bv = b.date; return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av); }
+    if (col === 'tokens')     { av = a.totalTokens; bv = b.totalTokens; }
+    if (col === 'turns')      { av = a.queryCount;  bv = b.queryCount;  }
+    if (col === 'efficiency') { av = a.queryCount >= 3 ? scoreSession(a) : -Infinity; bv = b.queryCount >= 3 ? scoreSession(b) : -Infinity; }
+    return dir === 'asc' ? av - bv : bv - av;
+  });
+  const top50 = sessions.slice(0, 50);
+
+  function sortIcon(c) {
+    if (c !== col) return `<span class="sort-icon">↕</span>`;
+    return `<span class="sort-icon active">${dir === 'asc' ? '↑' : '↓'}</span>`;
+  }
+
+  const effTitle = 'Efficiency score: output ratio × 0.5 + cache ratio × 0.3 − tool density × 0.05';
+
   let html = `<table>
-    <thead><tr><th>Prompt</th><th>Date</th><th>Model</th><th class="text-right">Tokens</th><th class="text-right">Turns</th></tr></thead>
+    <thead><tr>
+      <th>Prompt</th>
+      <th class="sortable" data-col="date">Date ${sortIcon('date')}</th>
+      <th>Model</th>
+      <th class="sortable text-right" data-col="tokens">Tokens ${sortIcon('tokens')}</th>
+      <th class="sortable text-right" data-col="turns">Turns ${sortIcon('turns')}</th>
+      <th class="sortable text-right" data-col="efficiency" title="${effTitle}">Efficiency ${sortIcon('efficiency')}</th>
+    </tr></thead>
     <tbody>`;
   for (const s of top50) {
-    html += `<tr style="cursor:pointer" onclick="openSessionModal('${escapeHtml(s.sessionId)}')">
+    let effCell;
+    if (s.queryCount < 3) {
+      effCell = `<td class="mono text-right text-muted" title="Need 3+ turns for score">—</td>`;
+    } else {
+      const score = scoreSession(s);
+      const color = score >= 0.5 ? 'var(--green)' : score >= 0.25 ? 'var(--orange)' : 'var(--red)';
+      effCell = `<td class="mono text-right" style="color:${color}" title="${effTitle}">${score.toFixed(2)}</td>`;
+    }
+    html += `<tr style="cursor:pointer" data-session-id="${escapeHtml(s.sessionId)}">
       <td class="truncate" title="${escapeHtml(s.firstPrompt)}">${escapeHtml(s.firstPrompt)}</td>
       <td class="mono text-muted">${s.date}</td>
       <td class="mono text-muted">${escapeHtml(shortModel(s.model))}</td>
       <td class="mono text-right">${fmt(s.totalTokens)}</td>
       <td class="mono text-right">${s.queryCount}</td>
+      ${effCell}
     </tr>`;
   }
   html += '</tbody></table>';
   if (data.sessions.length > 50) {
-    html += `<div class="text-muted" style="margin-top:8px;font-size:12px;">Showing top 50 of ${data.sessions.length} sessions</div>`;
+    html += `<div class="text-muted" style="margin-top:8px;font-size:12px;">Showing top 50 of ${data.sessions.length} sessions by ${col}</div>`;
   }
-  $('#sessionsTable').innerHTML = html;
+  const container = $('#sessionsTable');
+  container.innerHTML = html;
 }
 
 function renderTools(data) {
@@ -915,8 +1224,89 @@ function renderOptimizations(data) {
   $('#optimizations').innerHTML = html;
 }
 
+// Heatmap tooltip — wired up once to avoid listener accumulation on re-render
+(function initHeatmapTooltip() {
+  const container = $('#heatmapContainer');
+  const tip = document.getElementById('heatmapTooltip');
+  container.addEventListener('mouseover', e => {
+    const cell = e.target.closest('[data-tip]');
+    if (!cell) { tip.style.opacity = '0'; return; }
+    tip.textContent = cell.dataset.tip;
+    tip.style.opacity = '1';
+  });
+  container.addEventListener('mousemove', e => {
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY - 36) + 'px';
+  });
+  container.addEventListener('mouseleave', () => {
+    tip.style.opacity = '0';
+  });
+})();
+
+// Sessions table — wired up once to avoid listener accumulation on re-render
+(function initSessionsTable() {
+  const container = $('#sessionsTable');
+  container.addEventListener('click', e => {
+    const th = e.target.closest('th[data-col]');
+    if (th) {
+      const c = th.dataset.col;
+      if (sessionSort.col === c) {
+        sessionSort.dir = sessionSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sessionSort.col = c;
+        sessionSort.dir = 'desc';
+      }
+      renderSessions(getFilteredData(window._data));
+      return;
+    }
+    const row = e.target.closest('tr[data-session-id]');
+    if (row) openSessionModal(row.dataset.sessionId);
+  });
+})();
+
+// Prompts table — wired up once to avoid listener accumulation on re-render
+(function initPromptsTable() {
+  const container = $('#promptsTable');
+  container.addEventListener('click', e => {
+    const th = e.target.closest('th[data-col]');
+    if (th) {
+      const c = th.dataset.col;
+      if (promptSort.col === c) {
+        promptSort.dir = promptSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        promptSort.col = c;
+        promptSort.dir = 'desc';
+      }
+      renderTopPrompts(getFilteredData(window._data));
+      return;
+    }
+    const row = e.target.closest('tr[data-session-id]');
+    if (row) openSessionModal(row.dataset.sessionId);
+  });
+})();
+
+// Heartbeat — tells server the tab is still open; server shuts down 5 min after last heartbeat
+(function startHeartbeat() {
+  function beat() { fetch('/api/heartbeat', { method: 'POST' }).catch(() => {}); }
+  beat();
+  setInterval(beat, 30 * 1000);
+})();
+
 // Refresh
 $('#refreshBtn').addEventListener('click', () => render(true));
+
+// Stop server
+$('#stopBtn').addEventListener('click', async () => {
+  if (!confirm('Stop the claude-code-pulse server?')) return;
+  const btn = $('#stopBtn');
+  btn.textContent = 'Stopping…';
+  btn.disabled = true;
+  try {
+    await fetch('/api/shutdown', { method: 'POST' });
+  } catch (_) {}
+  document.body.innerHTML = '<div style="padding:2rem;font-family:monospace;">Server stopped. You can close this tab.</div>';
+  window.close();
+});
 
 // Init
 // ── Session Modal ────────────────────────────────────────────────────────────
