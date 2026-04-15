@@ -317,6 +317,7 @@ async function parseAllSessions(forceRefresh = false) {
       flushPrompt();
 
       const totalToolCalls = queries.reduce((sum, q) => sum + q.tools.length, 0);
+      const sessionTools = queries.flatMap(q => q.tools);
 
       sessions.push({
         sessionId, project: projectDir, date,
@@ -329,6 +330,7 @@ async function parseAllSessions(forceRefresh = false) {
         thinkingTurns,
         totalToolCalls,
         toolDensity: queries.length > 0 ? totalToolCalls / queries.length : 0,
+        tools: sessionTools,
       });
 
       // Daily aggregation

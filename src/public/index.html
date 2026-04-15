@@ -90,7 +90,7 @@
   .btn-stop { color: #f87171; border-color: #f8717155; }
   .btn-stop:hover { background: #f8717122; color: #f87171; }
   .last-updated { color: var(--text-dim); font-size: 12px; }
-  .filter-btns { display: flex; gap: 4px; }
+  .filter-btns { display: flex; gap: 4px; align-items: center; }
   .filter-btn {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -104,6 +104,20 @@
   }
   .filter-btn:hover { background: var(--bg-hover); color: var(--text); }
   .filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
+  .custom-range { display: none; align-items: center; gap: 4px; margin-left: 4px; }
+  .custom-range.visible { display: flex; }
+  .custom-range input[type="date"] {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 3px 6px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .custom-range input[type="date"]:focus { border-color: var(--accent); outline: none; }
+  .custom-range span { color: var(--text-dim); font-size: 12px; }
   .delta { font-size: 11px; margin-top: 2px; }
   .delta.up { color: var(--green); }
   .delta.down { color: var(--red); }
@@ -452,6 +466,12 @@
           <button class="filter-btn" data-range="30d">30D</button>
           <button class="filter-btn" data-range="90d">90D</button>
           <button class="filter-btn active" data-range="all">All</button>
+          <button class="filter-btn" data-range="custom">Custom</button>
+        </div>
+        <div class="custom-range" id="customRange">
+          <input type="date" id="startDate" title="Start date">
+          <span>to</span>
+          <input type="date" id="endDate" title="End date">
         </div>
         <button class="btn" id="refreshBtn" aria-label="Refresh data">Refresh</button>
         <button class="btn" id="themeBtn" aria-label="Toggle theme">Light</button>
@@ -614,23 +634,38 @@ function shortProject(p) {
 let sessionSort = { col: 'tokens', dir: 'desc' };
 let promptSort = { col: 'tokens', dir: 'desc' };
 let dateFilter = 'all';
+let customStart = null;
+let customEnd = null;
 
 // Date range filter
-function getCutoff(range) {
-  if (range === 'all') return null;
+function getDateRange(range) {
+  if (range === 'all') return { start: null, end: null };
+  if (range === 'custom') return { start: customStart, end: customEnd };
   const d = new Date();
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
   d.setDate(d.getDate() - (days - 1));
-  return d.toISOString().split('T')[0];
+  return { start: d.toISOString().split('T')[0], end: null };
 }
 
 function getFilteredData(data) {
-  const cutoff = getCutoff(dateFilter);
-  if (!cutoff) return data;
+  const { start, end } = getDateRange(dateFilter);
+  if (!start && !end) return data;
 
-  const sessions = data.sessions.filter(s => s.date >= cutoff);
-  const dailyUsage = data.dailyUsage.filter(d => d.date >= cutoff);
-  const topPrompts = (data.topPrompts || []).filter(p => p.date >= cutoff);
+  const sessions = data.sessions.filter(s => {
+    if (start && s.date < start) return false;
+    if (end && s.date > end) return false;
+    return true;
+  });
+  const dailyUsage = data.dailyUsage.filter(d => {
+    if (start && d.date < start) return false;
+    if (end && d.date > end) return false;
+    return true;
+  });
+  const topPrompts = (data.topPrompts || []).filter(p => {
+    if (start && p.date < start) return false;
+    if (end && p.date > end) return false;
+    return true;
+  });
 
   // Recompute totals
   const totalInput = sessions.reduce((s, x) => s + x.inputTokens, 0);
@@ -667,6 +702,19 @@ function getFilteredData(data) {
   }
   const modelBreakdown = Object.values(modelMap).sort((a, b) => b.totalTokens - a.totalTokens);
 
+  // Recompute tool stats from filtered sessions
+  const toolFrequency = {};
+  for (const s of sessions) {
+    if (s.tools) {
+      for (const tool of s.tools) {
+        toolFrequency[tool] = (toolFrequency[tool] || 0) + 1;
+      }
+    }
+  }
+  const toolStats = Object.entries(toolFrequency)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
   return {
     ...data,
     sessions,
@@ -674,6 +722,7 @@ function getFilteredData(data) {
     topPrompts,
     projects,
     modelBreakdown,
+    toolStats,
     totals: {
       totalTokens, totalInput, totalOutput, totalCacheCreation, totalCacheRead,
       totalCost, totalSessions: sessions.length, totalQueries,
@@ -684,13 +733,34 @@ function getFilteredData(data) {
   };
 }
 
+function applyFilter() {
+  if (!window._data) return;
+  renderAll(getFilteredData(window._data));
+}
+
 // Wire filter buttons
 document.getElementById('filterBtns').addEventListener('click', e => {
   const btn = e.target.closest('[data-range]');
   if (!btn || !window._data) return;
   dateFilter = btn.dataset.range;
   $$('#filterBtns [data-range]').forEach(b => b.classList.toggle('active', b === btn));
-  renderAll(getFilteredData(window._data));
+  const customEl = $('#customRange');
+  if (dateFilter === 'custom') {
+    customEl.classList.add('visible');
+  } else {
+    customEl.classList.remove('visible');
+  }
+  applyFilter();
+});
+
+// Wire custom date inputs
+$('#startDate').addEventListener('change', e => {
+  customStart = e.target.value || null;
+  if (dateFilter === 'custom') applyFilter();
+});
+$('#endDate').addEventListener('change', e => {
+  customEnd = e.target.value || null;
+  if (dateFilter === 'custom') applyFilter();
 });
 
 function renderAll(data) {
