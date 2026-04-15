@@ -42,7 +42,7 @@ claude-code-pulse
 - **Avg tokens / session** — average tokens per session and per turn   
 
 ### Date range filter
-Toggle between **7D / 30D / 90D / All** in the header to filter every view to a time window.
+Toggle between **7D / 30D / 90D / All** in the header, or click **Custom** to pick a specific start and end date. The filter applies globally — all tabs (Overview, Projects, Sessions, Tools, Prompts) update to reflect the selected time window.
 
 ## Dashboard Tabs
 
